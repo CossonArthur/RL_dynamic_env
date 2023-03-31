@@ -14,7 +14,7 @@ norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
 
 # env configuration
 SIZE = 10
-NB_EPISODES = 400
+NB_EPISODES = 100
 NB_MAX_MOVES = 5 * SIZE * SIZE
 
 
@@ -124,8 +124,8 @@ def train(decision_making="stoch", player_start=(0, 0), survivor=2, pitfall=0, f
             obs = player.get_coord()
             Path.append(obs)
 
-            # if obs in exits and maze[obs] == ESCAPING_REWARD:
-            #     break
+            if obs in exits and maze[obs] == ESCAPING_REWARD:
+                break
 
             # action selection
             if np.random.random() > EPSILON * EPS_FACTOR ** (move * episode):
@@ -146,19 +146,19 @@ def train(decision_making="stoch", player_start=(0, 0), survivor=2, pitfall=0, f
 
             else:
                 action = np.random.choice(player.possible_moves())
-                # j = len(player.possible_moves())
-                # while (
-                #     maze[
-                #         (
-                #             obs[0] + allowed_moves[action][0],
-                #             obs[1] + allowed_moves[action][1],
-                #         )
-                #     ]
-                #     == -WALL_PENALTY
-                #     and j > 0
-                # ):
-                #     action = np.random.choice(player.possible_moves())
-                #     j -= 1
+                j = len(player.possible_moves())
+                while (
+                    maze[
+                        (
+                            obs[0] + allowed_moves[action][0],
+                            obs[1] + allowed_moves[action][1],
+                        )
+                    ]
+                    == -WALL_PENALTY
+                    and j > 0
+                ):
+                    action = np.random.choice(player.possible_moves())
+                    j -= 1
 
             # updating the player position
             player.move(action)
@@ -189,29 +189,19 @@ def train(decision_making="stoch", player_start=(0, 0), survivor=2, pitfall=0, f
                                 if proba < fire_prob_spread * 1.001**move:
                                     maze[(y + h, x + w)] = -FIRE_PENALTY + 1
 
-            if move > 0.5 * NB_MAX_MOVES:
-                for (x, y) in exits:
-                    maze[x, y] = ESCAPING_REWARD
-
-                if player.get_coord() in entrances:
-                    break
-
             if reward == SAVING_REWARD:
                 maze[player.get_coord()] = -MOVING_PENALTY
 
-            # if reward == SAVING_REWARD:
-            #     maze[player.get_coord()] = -MOVING_PENALTY
+                for (x, y) in exits:
+                    maze[x, y] = ESCAPING_REWARD
 
-            #     for (x, y) in exits:
-            #         maze[x, y] = ESCAPING_REWARD
-
-            # elif reward not in [
-            #     -WALL_PENALTY,
-            #     -FIRE_PENALTY,
-            #     -PITFALL_PENALTY,
-            #     ESCAPING_REWARD,
-            # ]:
-            #     maze[player.get_coord()] += -MOVING_PENALTY
+            elif reward not in [
+                -WALL_PENALTY,
+                -FIRE_PENALTY,
+                -PITFALL_PENALTY,
+                ESCAPING_REWARD,
+            ]:
+                maze[player.get_coord()] += -MOVING_PENALTY
 
             if moves == NB_MAX_MOVES:
                 player.cumulative_reward = -99999999
