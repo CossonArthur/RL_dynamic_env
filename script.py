@@ -3,7 +3,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 from matplotlib.animation import FuncAnimation
-import random
 from scipy.special import softmax
 from maze import new_lab
 
@@ -20,8 +19,8 @@ NB_MAX_MOVES = 5 * SIZE * SIZE
 
 
 # parameters
-BETA = 2  # softmax parameter
-EPSILON = 0.1  # probability of random choice
+BETA = 0.1  # softmax parameter
+EPSILON = 0.5  # probability of random choice
 EPS_FACTOR = 0.99  # Every episode will be epsilon*EPS_DECAY
 LEARNING_RATE = 0.4  # learning rate
 DISCOUNT = 0.8  # discount factor
@@ -32,12 +31,12 @@ fire_prob_spread = 0.3  # probability of fire spreading
 MOVING_PENALTY = 1
 WALL_PENALTY = 20000
 FIRE_PENALTY = 50
-PITFALL_PENALTY = 10
+PITFALL_PENALTY = 50
 SAVING_REWARD = 100
 ESCAPING_REWARD = 200
 
 # element of env
-possible_moves = [(0, 1), (1, 0), (-1, 0), (0, -1)]
+allowed_moves = [(0, 1), (1, 0), (-1, 0), (0, -1)]
 entrances = [(0, 0)]
 exits = [(9, 9)]
 
@@ -61,20 +60,20 @@ class Player:
 
     def possible_moves(self):
         moves = []
-        for i in range(4):
+        for i in range(len(allowed_moves)):
             if (
-                self.x + possible_moves[i][0] >= 0
-                and self.x + possible_moves[i][0] < SIZE
-                and self.y + possible_moves[i][1] >= 0
-                and self.y + possible_moves[i][1] < SIZE
+                self.x + allowed_moves[i][0] >= 0
+                and self.x + allowed_moves[i][0] < SIZE
+                and self.y + allowed_moves[i][1] >= 0
+                and self.y + allowed_moves[i][1] < SIZE
             ):
                 moves.append(i)
         return moves
 
     def move(self, num):
 
-        self.x += possible_moves[num][0]
-        self.y += possible_moves[num][1]
+        self.x += allowed_moves[num][0]
+        self.y += allowed_moves[num][1]
 
         # If player is out of bounds
         if self.x < 0:
@@ -102,36 +101,14 @@ def create_env(player_start, survivor, pitfall, fire):
     return player, maze
 
 
-def qlearning(
-    decision_making="stoch", player_start=(0, 0), survivor=2, pitfall=0, fire=0
-):
-    global EPSILON
-
-    def update_fire(maze, fire_prob_spread, move):
-        for (y, x) in np.argwhere(maze == -FIRE_PENALTY):
-            for h in range(-2, 3):
-                for w in range(-2, 3):
-                    if (
-                        w**2 + h**2 <= 4
-                        and y + h >= 0
-                        and y + h < SIZE
-                        and x + w >= 0
-                        and x + w < SIZE
-                    ):
-
-                        proba = random.random()
-                        if proba < fire_prob_spread * 1.001**move:
-                            maze[(y + h, x + w)] = -FIRE_PENALTY + 1
+def train(decision_making="stoch", player_start=(0, 0), survivor=2, pitfall=0, fire=0):
 
     # before starting the Q learning algorithm, we should define the state space
 
-    Q = np.ones((SIZE, SIZE, 4)) * -1000
-
-    episode = 0
+    Q = np.zeros((SIZE, SIZE, 4))
     awards = []
     paths = []
     Qs = []
-    awards = []
     moves = []
 
     player, maze_original = create_env(player_start, survivor, pitfall, fire)
@@ -141,24 +118,25 @@ def qlearning(
         # reset the env
         player.reset(entrances[np.random.choice(len(entrances), replace=False)])
         maze = np.copy(maze_original)
-        move = 0
         Path = []
 
         for move in range(NB_MAX_MOVES):
             obs = player.get_coord()
             Path.append(obs)
 
-            if obs in exits and maze[obs] == ESCAPING_REWARD:
-                break
+            # if obs in exits and maze[obs] == ESCAPING_REWARD:
+            #     break
 
             # action selection
-            if np.random.random() > EPSILON:
+            if np.random.random() > EPSILON * EPS_FACTOR ** (move * episode):
                 # epsilon greedy
                 if decision_making == "greedy":
                     action = np.argmax(
-                        [Q[obs][i] for i in player.possible_moves()]
+                        [
+                            Q[obs][i]
+                            for i in np.random.permutation(player.possible_moves())
+                        ]
                     )  # action with the highest q value
-
                 # softmax
                 elif decision_making == "stoch":
                     p = softmax(
@@ -168,41 +146,64 @@ def qlearning(
 
             else:
                 action = np.random.choice(player.possible_moves())
-                j = len(player.possible_moves())
-                while (
-                    maze[
-                        (
-                            obs[0] + possible_moves[action][0],
-                            obs[1] + possible_moves[action][1],
-                        )
-                    ]
-                    == -WALL_PENALTY
-                    and j > 0
-                ):
-                    action = np.random.choice(player.possible_moves())
-                    j -= 1
+                # j = len(player.possible_moves())
+                # while (
+                #     maze[
+                #         (
+                #             obs[0] + allowed_moves[action][0],
+                #             obs[1] + allowed_moves[action][1],
+                #         )
+                #     ]
+                #     == -WALL_PENALTY
+                #     and j > 0
+                # ):
+                #     action = np.random.choice(player.possible_moves())
+                #     j -= 1
 
             # updating the player position
             player.move(action)
 
             # calcul of the reward
-            reward = maze[obs]
+            reward = maze[player.get_coord()]
             player.cumulative_reward += reward
 
             # updating the q table
             Q[obs][action] = (1 - LEARNING_RATE) * Q[obs][action] + LEARNING_RATE * (
-                reward + DISCOUNT * np.max(Q[obs])
+                reward + DISCOUNT * np.max(Q[player.get_coord()])
             )
 
             # update fire postion
             if fire > 0:
-                update_fire(maze, fire_prob_spread, move)
+                for (y, x) in np.argwhere(maze == -FIRE_PENALTY):
+                    for h in range(-2, 3):
+                        for w in range(-2, 3):
+                            if (
+                                w**2 + h**2 <= 4
+                                and y + h >= 0
+                                and y + h < SIZE
+                                and x + w >= 0
+                                and x + w < SIZE
+                            ):
 
-            if reward == SAVING_REWARD:
-                maze[obs] = -MOVING_PENALTY
+                                proba = np.random.random()
+                                if proba < fire_prob_spread * 1.001**move:
+                                    maze[(y + h, x + w)] = -FIRE_PENALTY + 1
 
+            if move > 0.5 * NB_MAX_MOVES:
                 for (x, y) in exits:
                     maze[x, y] = ESCAPING_REWARD
+
+                if player.get_coord() in entrances:
+                    break
+
+            if reward == SAVING_REWARD:
+                maze[player.get_coord()] = -MOVING_PENALTY
+
+            # if reward == SAVING_REWARD:
+            #     maze[player.get_coord()] = -MOVING_PENALTY
+
+            #     for (x, y) in exits:
+            #         maze[x, y] = ESCAPING_REWARD
 
             # elif reward not in [
             #     -WALL_PENALTY,
@@ -210,16 +211,15 @@ def qlearning(
             #     -PITFALL_PENALTY,
             #     ESCAPING_REWARD,
             # ]:
-            #     maze[obs] += -MOVING_PENALTY
+            #     maze[player.get_coord()] += -MOVING_PENALTY
 
             if moves == NB_MAX_MOVES:
-                player.cumulative_reward = -99999
+                player.cumulative_reward = -99999999
 
         awards.append(player.cumulative_reward)
         paths.append(Path)
-        Qs.append(Q)
+        Qs.append(np.copy(Q))
         moves.append(move)
-        EPSILON = EPSILON * EPS_FACTOR
 
     plt.clf()
     plt.plot(awards)
@@ -265,4 +265,4 @@ def show_path(award_list):
     plt.plot(award_list)
 
 
-maze, paths, awards, Qs, moves = qlearning()
+maze, paths, awards, Qs, moves = train()

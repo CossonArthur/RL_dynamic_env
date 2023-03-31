@@ -8,3 +8,6 @@ maze.gif
 output.png
 params.csv
 params_selec.csv
+
+
+*.tmp
