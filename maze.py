@@ -150,6 +150,22 @@ def canEscape(maze, entrances, exits):
 
     maze = maze.copy()
 
+    #  extent fire to adjacent cells
+    for (y, x) in np.argwhere(maze == m_fire):
+        for h in range(-2, 3):
+            for w in range(-2, 3):
+                # why is there an excpetion of index out of range here?
+                if(
+                    0 <= y + h < len(maze)
+                    and 0 <= x + w < len(maze[0])
+                    and h**2 + w**2 <= 4
+                ):
+                    if(maze[y + h, x + w] == m_survivor):
+                        return False
+                    else:
+                        maze[y + h, x + w] = m_wall
+                
+
     queue = Queue()
     for (y_entrance, x_entrance) in entrances:
         maze[y_entrance, x_entrance] = -1
