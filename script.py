@@ -14,7 +14,7 @@ norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
 
 # env configuration
 SIZE = 10
-NB_EPISODES = 100
+NB_EPISODES = 200
 NB_MAX_MOVES = 5 * SIZE * SIZE
 
 
@@ -120,6 +120,12 @@ def train(decision_making="stoch", player_start=(0, 0), survivor=2, pitfall=0, f
         maze = np.copy(maze_original)
         Path = []
 
+        # add pitfalls
+        if pitfall > 0:
+            for (y, x) in np.argwhere(maze == -PITFALL_PENALTY):
+                if np.random.random() > proba_pitfall:
+                    maze[y, x] = -WALL_PENALTY
+
         for move in range(NB_MAX_MOVES):
             obs = player.get_coord()
             Path.append(obs)
@@ -128,7 +134,7 @@ def train(decision_making="stoch", player_start=(0, 0), survivor=2, pitfall=0, f
                 break
 
             # action selection
-            if np.random.random() > EPSILON * EPS_FACTOR ** (move * episode):
+            if np.random.random() > EPSILON * EPS_FACTOR ** (episode + np.sqrt(move)):
                 # epsilon greedy
                 if decision_making == "greedy":
                     action = np.argmax(
@@ -231,8 +237,8 @@ def show_map(
     maze[maze == -MOVING_PENALTY] = 0
     maze[maze == -WALL_PENALTY] = 1
     maze[maze == -PITFALL_PENALTY] = 4
-    maze[maze == -FIRE_PENALTY] = 4.5
-    maze[maze == -FIRE_PENALTY + 1] = 4.5
+    maze[maze == -FIRE_PENALTY] = 5
+    maze[maze == -FIRE_PENALTY + 1] = 5
     maze[maze == SAVING_REWARD] = 7
     for i, j in exits:
         maze[i, j] = 2
@@ -255,4 +261,4 @@ def show_path(award_list):
     plt.plot(award_list)
 
 
-maze, paths, awards, Qs, moves = train()
+maze, paths, awards, Qs, moves = train(fire=0, pitfall=0, survivor=2)
