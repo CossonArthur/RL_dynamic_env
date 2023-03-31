@@ -46,6 +46,9 @@ class Player:
         self.x = coord[0]
         self.y = coord[1]
         self.cumulative_reward = 0
+        self.Q = np.zeros((SIZE, SIZE, len(allowed_moves)))
+        self.BestQ = None
+        self.best_reward = -np.inf
 
     def get_coord(self):
         return (self.x, self.y)
@@ -53,7 +56,11 @@ class Player:
     def set_coord(self, coord):
         self.x, self.y = coord
 
-    def reset(self, coord):
+    def reset(self, coord, Q=None):
+        if not Q and self.best_reward < self.cumulative_reward:
+            self.best_reward = self.cumulative_reward
+            self.BestQ = np.copy(Q)
+
         self.x = coord[0]
         self.y = coord[1]
         self.cumulative_reward = 0
@@ -87,8 +94,8 @@ class Player:
             self.y = SIZE - 1
 
 
-def create_env(player_start, survivor, pitfall, fire):
-    player = Player(player_start)
+def create_env(survivor, pitfall, fire):
+    player = Player(entrances[0])
 
     maze = new_lab(entrances, exits, survivor, pitfall, fire, size=(SIZE, SIZE))
 
@@ -101,24 +108,109 @@ def create_env(player_start, survivor, pitfall, fire):
     return player, maze
 
 
-def train(decision_making="stoch", player_start=(0, 0), survivor=2, pitfall=0, fire=0):
+def qlearning(player, maze, episode, decision_making, survivor, fire):
+
+    path = []
+
+    for move in range(NB_MAX_MOVES):
+        obs = player.get_coord()
+        path.append(obs)
+
+        if obs in exits and maze[obs] == ESCAPING_REWARD:
+            break
+
+        # action selection
+        if np.random.random() > EPSILON * EPS_FACTOR ** (episode + np.sqrt(move)):
+            # epsilon greedy
+            if decision_making == "greedy":
+                action = np.argmax(
+                    [
+                        player.Q[obs][i]
+                        for i in np.random.permutation(player.possible_moves())
+                    ]
+                )  # action with the highest q value
+            # softmax
+            elif decision_making == "stoch":
+                p = softmax(
+                    [BETA * player.Q[obs][i] for i in player.possible_moves()]
+                )  # probabilities for different actions
+                action = np.random.choice(player.possible_moves(), p=p)
+
+        else:
+            action = np.random.choice(player.possible_moves())
+            j = len(player.possible_moves())
+            while (
+                maze[
+                    (
+                        obs[0] + allowed_moves[action][0],
+                        obs[1] + allowed_moves[action][1],
+                    )
+                ]
+                == -WALL_PENALTY
+                and j > 0
+            ):
+                action = np.random.choice(player.possible_moves())
+                j -= 1
+
+        # updating the player position
+        player.move(action)
+
+        # calcul of the reward
+        reward = maze[player.get_coord()]
+        player.cumulative_reward += reward
+
+        # updating the q table
+        player.Q[obs][action] = (1 - LEARNING_RATE) * player.Q[obs][
+            action
+        ] + LEARNING_RATE * (reward + DISCOUNT * np.max(player.Q[player.get_coord()]))
+
+        # update fire postion
+        if fire > 0:
+            for (y, x) in np.argwhere(maze == -FIRE_PENALTY):
+                for h in range(-2, 3):
+                    for w in range(-2, 3):
+                        if (
+                            w**2 + h**2 <= 4
+                            and y + h >= 0
+                            and y + h < SIZE
+                            and x + w >= 0
+                            and x + w < SIZE
+                        ):
+
+                            proba = np.random.random()
+                            if proba < fire_prob_spread * 1.001**move:
+                                maze[(y + h, x + w)] = -FIRE_PENALTY + 1
+
+        if reward == SAVING_REWARD or survivor == 0:
+            maze[player.get_coord()] = -MOVING_PENALTY
+
+            for (x, y) in exits:
+                maze[x, y] = ESCAPING_REWARD
+
+        elif reward not in [
+            -WALL_PENALTY,
+            -FIRE_PENALTY,
+            -PITFALL_PENALTY,
+            ESCAPING_REWARD,
+        ]:
+            maze[player.get_coord()] += -MOVING_PENALTY
+
+        if move == NB_MAX_MOVES:
+            player.cumulative_reward = -np.inf
+
+    return player, path
+
+
+def train(Maze, player, decision_making="stoch", survivor=2, pitfall=0, fire=0):
 
     # before starting the Q learning algorithm, we should define the state space
 
-    Q = np.zeros((SIZE, SIZE, 4))
-    awards = []
-    paths = []
-    Qs = []
-    moves = []
-
-    player, maze_original = create_env(player_start, survivor, pitfall, fire)
-
     for episode in range(NB_EPISODES):
+        print("Episode {} on {}".format(episode + 1, NB_EPISODES), end="\r")
 
         # reset the env
         player.reset(entrances[np.random.choice(len(entrances), replace=False)])
-        maze = np.copy(maze_original)
-        Path = []
+        maze = np.copy(Maze)
 
         # add pitfalls
         if pitfall > 0:
@@ -126,108 +218,47 @@ def train(decision_making="stoch", player_start=(0, 0), survivor=2, pitfall=0, f
                 if np.random.random() > proba_pitfall:
                     maze[y, x] = -WALL_PENALTY
 
-        for move in range(NB_MAX_MOVES):
-            obs = player.get_coord()
-            Path.append(obs)
+        player, _ = qlearning(player, maze, episode, decision_making, fire, survivor)
 
-            if obs in exits and maze[obs] == ESCAPING_REWARD:
-                break
-
-            # action selection
-            if np.random.random() > EPSILON * EPS_FACTOR ** (episode + np.sqrt(move)):
-                # epsilon greedy
-                if decision_making == "greedy":
-                    action = np.argmax(
-                        [
-                            Q[obs][i]
-                            for i in np.random.permutation(player.possible_moves())
-                        ]
-                    )  # action with the highest q value
-                # softmax
-                elif decision_making == "stoch":
-                    p = softmax(
-                        [BETA * Q[obs][i] for i in player.possible_moves()]
-                    )  # probabilities for different actions
-                    action = np.random.choice(player.possible_moves(), p=p)
-
-            else:
-                action = np.random.choice(player.possible_moves())
-                j = len(player.possible_moves())
-                while (
-                    maze[
-                        (
-                            obs[0] + allowed_moves[action][0],
-                            obs[1] + allowed_moves[action][1],
-                        )
-                    ]
-                    == -WALL_PENALTY
-                    and j > 0
-                ):
-                    action = np.random.choice(player.possible_moves())
-                    j -= 1
-
-            # updating the player position
-            player.move(action)
-
-            # calcul of the reward
-            reward = maze[player.get_coord()]
-            player.cumulative_reward += reward
-
-            # updating the q table
-            Q[obs][action] = (1 - LEARNING_RATE) * Q[obs][action] + LEARNING_RATE * (
-                reward + DISCOUNT * np.max(Q[player.get_coord()])
-            )
-
-            # update fire postion
-            if fire > 0:
-                for (y, x) in np.argwhere(maze == -FIRE_PENALTY):
-                    for h in range(-2, 3):
-                        for w in range(-2, 3):
-                            if (
-                                w**2 + h**2 <= 4
-                                and y + h >= 0
-                                and y + h < SIZE
-                                and x + w >= 0
-                                and x + w < SIZE
-                            ):
-
-                                proba = np.random.random()
-                                if proba < fire_prob_spread * 1.001**move:
-                                    maze[(y + h, x + w)] = -FIRE_PENALTY + 1
-
-            if reward == SAVING_REWARD or survivor == 0:
-                maze[player.get_coord()] = -MOVING_PENALTY
-
-                for (x, y) in exits:
-                    maze[x, y] = ESCAPING_REWARD
-
-            elif reward not in [
-                -WALL_PENALTY,
-                -FIRE_PENALTY,
-                -PITFALL_PENALTY,
-                ESCAPING_REWARD,
-            ]:
-                maze[player.get_coord()] += -MOVING_PENALTY
-
-            if moves == NB_MAX_MOVES:
-                player.cumulative_reward = -99999999
-
-        awards.append(player.cumulative_reward)
-        paths.append(Path)
-        Qs.append(np.copy(Q))
-        moves.append(move)
-
-    plt.clf()
-    plt.plot(awards)
-    plt.ylabel("Rewards")
-    plt.xlabel("Episodes")
-
-    plt.show()
-    show_map(np.copy(maze_original), paths[awards.index(max(awards))])
-
-    return maze_original, paths, awards, Qs, moves
+    print("")
+    return player
 
 
+def test(
+    maze,
+    player,
+    shots=1,
+    decision_making="stoch",
+    fire=0,
+    survivor=2,
+):
+
+    return qlearning(player, maze, 0, decision_making, fire, survivor)
+
+
+def model(
+    test=False,
+    survivor=2,
+    pitfall=0,
+    fire=0,
+):
+
+    player, Maze = create_env(survivor, pitfall, fire)
+    player.Q = np.zeros((SIZE, SIZE, len(allowed_moves)))
+
+    print("Training...")
+    player = train(Maze, player, "stoch", survivor, pitfall, fire)
+    print("Training done")
+
+    if test:
+        print("Testing...")
+        player, path = test(Maze, player, 1, "stoch", survivor, pitfall, fire)
+        print("Testing done")
+
+        show_map(Maze, path)
+
+
+#%%
 def show_map(
     maze,
     path=[],
@@ -265,10 +296,3 @@ def show_map(
     anim = FuncAnimation(fig, animatefct, frames=len(path), repeat=True)
     plt.axis("off")
     anim.save("maze.gif", fps=20)
-
-
-def show_path(award_list):
-    plt.plot(award_list)
-
-
-maze, paths, awards, Qs, moves = train(survivor=2, pitfall=5, fire=1)
