@@ -1,0 +1,10 @@
+
+
+__pycache__/
+*.py[cod]
+*$py.class
+
+maze.gif
+output.txt
+params.csv
+params_selec.csv
