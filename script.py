@@ -30,7 +30,7 @@ fire_prob_spread = 0.3  # probability of fire spreading
 # rewards
 MOVING_PENALTY = 1
 WALL_PENALTY = 20000
-FIRE_PENALTY = 50
+FIRE_PENALTY = 70
 PITFALL_PENALTY = 50
 SAVING_REWARD = 100
 ESCAPING_REWARD = 200
@@ -195,7 +195,7 @@ def train(decision_making="stoch", player_start=(0, 0), survivor=2, pitfall=0, f
                                 if proba < fire_prob_spread * 1.001**move:
                                     maze[(y + h, x + w)] = -FIRE_PENALTY + 1
 
-            if reward == SAVING_REWARD:
+            if reward == SAVING_REWARD or survivor == 0:
                 maze[player.get_coord()] = -MOVING_PENALTY
 
                 for (x, y) in exits:
@@ -234,12 +234,22 @@ def show_map(
 ):
 
     # modification of data for rendering
+    for (y, x) in np.argwhere(maze == -FIRE_PENALTY):
+        for h in range(-2, 3):
+            for w in range(-2, 3):
+                if (
+                    w**2 + h**2 <= 4
+                    and 0 <= y + h < len(maze)
+                    and 0 <= x + w < len(maze[0])
+                ):
+                    maze[(y + h, x + w)] = 2
+
     maze[maze == -MOVING_PENALTY] = 0
     maze[maze == -WALL_PENALTY] = 1
     maze[maze == -PITFALL_PENALTY] = 4
-    maze[maze == -FIRE_PENALTY] = 5
-    maze[maze == -FIRE_PENALTY + 1] = 5
+    maze[maze == -FIRE_PENALTY] = 2
     maze[maze == SAVING_REWARD] = 7
+
     for i, j in exits:
         maze[i, j] = 2
 
@@ -248,7 +258,7 @@ def show_map(
 
     def animatefct(i):
         if i < len(path):
-            maze[path[i]] = 5.5
+            maze[path[i]] = 5
         im.set_array(maze)
         return [im]
 
@@ -261,4 +271,4 @@ def show_path(award_list):
     plt.plot(award_list)
 
 
-maze, paths, awards, Qs, moves = train(fire=0, pitfall=0, survivor=2)
+maze, paths, awards, Qs, moves = train(survivor=2, pitfall=5, fire=1)
