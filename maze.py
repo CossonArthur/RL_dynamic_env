@@ -117,6 +117,10 @@ def creation_lab(entrances, exits, size, alpha, survivor, pitfall, fire):
     ).T
 
     for x, y in r_survivor:
+        if((x, y) in entrances + exits):
+            return creation_lab(entrances, exits, size, alpha, survivor, pitfall, fire)
+
+    for x, y in r_survivor:
         maze[x, y] = m_survivor
     for x, y in random[:pitfall, :]:
         maze[x, y] = m_pitfall
