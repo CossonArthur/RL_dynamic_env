@@ -108,6 +108,14 @@ def create_env(survivor, pitfall, fire):
     return player, maze
 
 
+def real_env(maze):
+    # modify the maze by mobing the survivors, fires and pitfall near from original position
+
+    # survivor
+
+    return maze
+
+
 def qlearning(player, maze, episode, decision_making, survivor, fire):
 
     path = []
@@ -233,11 +241,19 @@ def test(
     survivor=2,
 ):
 
+
+
+    for _ in range(shots):
+        player.reset(entrances[np.random.choice(len(entrances), replace=False)])
+        player, _ = qlearning(player, maze, 0, decision_making, fire, survivor)
+
+    player.reset(entrances[np.random.choice(len(entrances), replace=False)])
+
     return qlearning(player, maze, 0, decision_making, fire, survivor)
 
 
 def model(
-    test=False,
+    doTest=True,
     survivor=2,
     pitfall=0,
     fire=0,
@@ -250,9 +266,12 @@ def model(
     player = train(Maze, player, "stoch", survivor, pitfall, fire)
     print("Training done")
 
-    if test:
+    if doTest:
         print("Testing...")
-        player, path = test(Maze, player, 1, "stoch", survivor, pitfall, fire)
+
+        # Maze = real_env(Maze, survivor, pitfall, fire)
+
+        player, path = test(Maze, player, 1, "stoch", survivor, fire)
         print("Testing done")
 
         show_map(Maze, path)
