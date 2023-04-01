@@ -233,7 +233,7 @@ def train(Maze, player, decision_making="stoch", survivor=2, pitfall=0, fire=0):
 
 
 def test(
-    maze,
+    Maze,
     player,
     shots=1,
     decision_making="stoch",
@@ -241,13 +241,13 @@ def test(
     survivor=2,
 ):
 
-
-
     for _ in range(shots):
         player.reset(entrances[np.random.choice(len(entrances), replace=False)])
+        maze = np.copy(Maze)
         player, _ = qlearning(player, maze, 0, decision_making, fire, survivor)
 
     player.reset(entrances[np.random.choice(len(entrances), replace=False)])
+    maze = np.copy(Maze)
 
     return qlearning(player, maze, 0, decision_making, fire, survivor)
 
@@ -260,6 +260,7 @@ def model(
 ):
 
     player, Maze = create_env(survivor, pitfall, fire)
+    show_map(Maze, [])
     player.Q = np.zeros((SIZE, SIZE, len(allowed_moves)))
 
     print("Training...")
@@ -304,14 +305,19 @@ def show_map(
         maze[i, j] = 2
 
     fig = plt.figure(figsize=(8, 8))
+    plt.axis("off")
     im = plt.imshow(maze, interpolation="none", cmap=cmap, norm=norm, animated=True)
 
-    def animatefct(i):
-        if i < len(path):
-            maze[path[i]] = 5
-        im.set_array(maze)
-        return [im]
+    if path != []:
 
-    anim = FuncAnimation(fig, animatefct, frames=len(path), repeat=True)
-    plt.axis("off")
-    anim.save("maze.gif", fps=20)
+        def animatefct(i):
+            maze[maze == 7.1] = 5
+            if i < len(path):
+                maze[path[i]] = 7.1
+            im.set_array(maze)
+            return [im]
+
+        anim = FuncAnimation(fig, animatefct, frames=len(path), repeat=True)
+        anim.save("maze.gif", fps=20)
+    else:
+        plt.show()
