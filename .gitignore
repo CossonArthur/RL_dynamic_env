@@ -1,6 +1,7 @@
 
 
 __pycache__/
+save/
 *.py[cod]
 *$py.class
 

@@ -117,7 +117,7 @@ def creation_lab(entrances, exits, size, alpha, survivor, pitfall, fire):
     ).T
 
     for x, y in r_survivor:
-        if((x, y) in entrances + exits):
+        if (x, y) in entrances + exits:
             return creation_lab(entrances, exits, size, alpha, survivor, pitfall, fire)
 
     for x, y in r_survivor:
@@ -152,23 +152,22 @@ def canEscape(maze, entrances, exits):
 
     """
 
-    maze = maze.copy()
+    maze = np.copy(maze)
 
     #  extent fire to adjacent cells
     for (y, x) in np.argwhere(maze == m_fire):
         for h in range(-2, 3):
             for w in range(-2, 3):
                 # why is there an excpetion of index out of range here?
-                if(
+                if (
                     0 <= y + h < len(maze)
                     and 0 <= x + w < len(maze[0])
                     and h**2 + w**2 <= 4
                 ):
-                    if(maze[y + h, x + w] == m_survivor):
+                    if maze[y + h, x + w] == m_survivor:
                         return False
                     else:
                         maze[y + h, x + w] = m_wall
-                
 
     queue = Queue()
     for (y_entrance, x_entrance) in entrances:

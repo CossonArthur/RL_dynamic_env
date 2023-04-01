@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 from matplotlib.animation import FuncAnimation
 from scipy.special import softmax
-from maze import new_lab
+from maze import new_lab, canEscape
 
 colors = ["black", "blue", "orange", "red", "purple", "yellow", "green"]
 bounds = [0, 1, 2, 3, 4, 5, 6, 7]
@@ -112,10 +112,35 @@ def create_env(survivor, pitfall, fire):
     return player, maze
 
 
-def real_env(maze):
+def real_env(Maze):
     # modify the maze by mobing the survivors, fires and pitfall near from original position
 
-    # survivor
+    def shuffle_position(maze):
+        for (y, x) in np.argwhere(maze == SAVING_REWARD):
+            shift = allowed_moves[np.random.choice(len(allowed_moves))]
+            if 0 <= x + shift[0] < SIZE and 0 <= y + shift[1] < SIZE:
+                maze[y, x] = -MOVING_PENALTY
+                maze[y + shift[0], x + shift[1]] = SAVING_REWARD
+
+        for (y, x) in np.argwhere(maze == -PITFALL_PENALTY):
+            shift = allowed_moves[np.random.choice(len(allowed_moves))]
+            if 0 <= x + shift[0] < SIZE and 0 <= y + shift[1] < SIZE:
+                maze[y, x] = -MOVING_PENALTY
+                maze[y + shift[0], x + shift[1]] = -PITFALL_PENALTY
+
+        for (y, x) in np.argwhere(maze == -FIRE_PENALTY):
+            shift = allowed_moves[np.random.choice(len(allowed_moves))]
+            if 0 <= x + shift[0] < SIZE and 0 <= y + shift[1] < SIZE:
+                maze[y, x] = -MOVING_PENALTY
+                maze[y + shift[0], x + shift[1]] = -FIRE_PENALTY
+
+        return maze
+
+    maze = np.copy(Maze)
+
+    maze = shuffle_position(maze)
+    while not canEscape(maze, entrances, exits):
+        maze = shuffle_position(maze)
 
     return maze
 
@@ -196,7 +221,7 @@ def qlearning(player, maze, episode, decision_making, survivor, fire):
                             if proba < fire_prob_spread * 1.001**move:
                                 maze[(y + h, x + w)] = -FIRE_PENALTY + 1
 
-        if reward == SAVING_REWARD or survivor == 0:
+        if reward == SAVING_REWARD:
             maze[player.get_coord()] = -MOVING_PENALTY
 
             for (x, y) in exits:
@@ -273,13 +298,14 @@ def test(
 
 def model(
     doTest=True,
+    shots=1,
     survivor=2,
     pitfall=2,
     fire=1,
 ):
 
     player, Maze = create_env(survivor, pitfall, fire)
-    show_map(Maze, [])
+    show_maze(Maze, [])
     player.Q = np.zeros((SIZE, SIZE, len(allowed_moves)))
     paths = []
 
@@ -292,16 +318,16 @@ def model(
 
         # Maze = real_env(Maze, survivor, pitfall, fire)
 
-        player, paths = test(Maze, player, 1, "stoch", survivor, fire)
+        player, paths = test(Maze, player, shots, "stoch", survivor, fire)
         print("Testing done")
 
-        show_map(Maze, paths[-1])
+        show_maze(Maze, paths[-1])
 
     return player, Maze, paths
 
 
 #%%
-def show_map(
+def show_maze(
     maze,
     path=[],
 ):
