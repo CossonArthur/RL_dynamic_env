@@ -20,7 +20,7 @@ NB_MAX_MOVES = 5 * SIZE * SIZE
 
 # parameters
 BETA = 0.1  # softmax parameter
-EPSILON = 0.3  # probability of random choice
+EPSILON = 0.1  # probability of random choice
 EPS_FACTOR = 0.999  # Every episode will be epsilon*EPS_DECAY
 LEARNING_RATE = 0.4  # learning rate
 DISCOUNT = 0.8  # discount factor
@@ -118,19 +118,19 @@ def real_env(Maze):
     def shuffle_position(maze):
         for (y, x) in np.argwhere(maze == SAVING_REWARD):
             shift = allowed_moves[np.random.choice(len(allowed_moves))]
-            if 0 <= x + shift[0] < SIZE and 0 <= y + shift[1] < SIZE:
+            if 0 <= y + shift[0] < SIZE and 0 <= x + shift[1] < SIZE:
                 maze[y, x] = -MOVING_PENALTY
                 maze[y + shift[0], x + shift[1]] = SAVING_REWARD
 
         for (y, x) in np.argwhere(maze == -PITFALL_PENALTY):
             shift = allowed_moves[np.random.choice(len(allowed_moves))]
-            if 0 <= x + shift[0] < SIZE and 0 <= y + shift[1] < SIZE:
+            if 0 <= y + shift[0] < SIZE and 0 <= x + shift[1] < SIZE:
                 maze[y, x] = -MOVING_PENALTY
                 maze[y + shift[0], x + shift[1]] = -PITFALL_PENALTY
 
         for (y, x) in np.argwhere(maze == -FIRE_PENALTY):
             shift = allowed_moves[np.random.choice(len(allowed_moves))]
-            if 0 <= x + shift[0] < SIZE and 0 <= y + shift[1] < SIZE:
+            if 0 <= y + shift[0] < SIZE and 0 <= x + shift[1] < SIZE:
                 maze[y, x] = -MOVING_PENALTY
                 maze[y + shift[0], x + shift[1]] = -FIRE_PENALTY
 
@@ -143,8 +143,6 @@ def real_env(Maze):
         maze = shuffle_position(maze)
 
     return maze
-
-
 
 
 def qlearning(player, maze, episode, decision_making, survivor, fire):
@@ -165,9 +163,9 @@ def qlearning(player, maze, episode, decision_making, survivor, fire):
         if np.random.random() > EPSILON * EPS_FACTOR ** (episode):
             # epsilon greedy
             if decision_making == "greedy":
-                action = player.possible_moves()[np.argmax(
-                    [player.Q[obs][i] for i in player.possible_moves()]
-                )]  # action with the highest q value
+                action = player.possible_moves()[
+                    np.argmax([player.Q[obs][i] for i in player.possible_moves()])
+                ]  # action with the highest q value
             # softmax
             elif decision_making == "stoch":
                 p = softmax(
@@ -259,8 +257,6 @@ def test(
 
     paths = []
 
-    player.set_Q(player.best_Q)
-
     for _ in range(shots):
         player.reset(entrances[np.random.choice(len(entrances), replace=False)])
         player, path = qlearning(
@@ -298,7 +294,7 @@ def model(
 
         Maze = real_env(Maze)
 
-        player, paths = test(Maze, player, shots, "greedy", survivor, fire)
+        player, paths = test(Maze, player, shots, "stoch", survivor, fire)
         print("Testing done")
 
         show_maze(Maze, paths[-1])
