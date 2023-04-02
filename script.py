@@ -14,13 +14,13 @@ norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
 
 # env configuration
 SIZE = 10
-NB_EPISODES = 300
+NB_EPISODES = 500
 NB_MAX_MOVES = 5 * SIZE * SIZE
 
 
 # parameters
 BETA = 0.1  # softmax parameter
-EPSILON = 0.1  # probability of random choice
+EPSILON = 0.3  # probability of random choice
 EPS_FACTOR = 0.999  # Every episode will be epsilon*EPS_DECAY
 LEARNING_RATE = 0.4  # learning rate
 DISCOUNT = 0.8  # discount factor
@@ -34,6 +34,7 @@ FIRE_PENALTY = 70
 PITFALL_PENALTY = 50
 SAVING_REWARD = 100
 ESCAPING_REWARD = 200
+LOOP_PENALTY = 100
 
 # element of env
 allowed_moves = [(0, 1), (1, 0), (-1, 0), (0, -1)]
@@ -178,6 +179,14 @@ def qlearning(player, maze, episode, decision_making, survivor, fire):
 
         # updating the player position
         player.move(action)
+
+        # loop detection
+        # if (
+        #     len(path) > 1
+        #     and path[-2] == player.get_coord()
+        #     and maze[player.get_coord()] == -MOVING_PENALTY
+        # ):
+        #     maze[player.get_coord()] = -LOOP_PENALTY
 
         # calcul of the reward
         reward = maze[player.get_coord()]
