@@ -14,14 +14,14 @@ norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
 
 # env configuration
 SIZE = 10
-NB_EPISODES = 400
+NB_EPISODES = 300
 NB_MAX_MOVES = 5 * SIZE * SIZE
 
 
 # parameters
 BETA = 0.1  # softmax parameter
-EPSILON = 0.5  # probability of random choice
-EPS_FACTOR = 0.99  # Every episode will be epsilon*EPS_DECAY
+EPSILON = 0.3  # probability of random choice
+EPS_FACTOR = 0.999  # Every episode will be epsilon*EPS_DECAY
 LEARNING_RATE = 0.4  # learning rate
 DISCOUNT = 0.8  # discount factor
 proba_pitfall = 0.7  # probability of having a pitfall
@@ -145,6 +145,8 @@ def real_env(Maze):
     return maze
 
 
+
+
 def qlearning(player, maze, episode, decision_making, survivor, fire):
 
     path = []
@@ -163,12 +165,9 @@ def qlearning(player, maze, episode, decision_making, survivor, fire):
         if np.random.random() > EPSILON * EPS_FACTOR ** (episode):
             # epsilon greedy
             if decision_making == "greedy":
-                action = np.argmax(
-                    [
-                        player.Q[obs][i]
-                        for i in np.random.permutation(player.possible_moves())
-                    ]
-                )  # action with the highest q value
+                action = player.possible_moves()[np.argmax(
+                    [player.Q[obs][i] for i in player.possible_moves()]
+                )]  # action with the highest q value
             # softmax
             elif decision_making == "stoch":
                 p = softmax(
@@ -178,19 +177,6 @@ def qlearning(player, maze, episode, decision_making, survivor, fire):
 
         else:
             action = np.random.choice(player.possible_moves())
-            # j = len(player.possible_moves())
-            # while (
-            #     maze[
-            #         (
-            #             obs[0] + allowed_moves[action][0],
-            #             obs[1] + allowed_moves[action][1],
-            #         )
-            #     ]
-            #     == -WALL_PENALTY
-            #     and j > 0
-            # ):
-            #     action = np.random.choice(player.possible_moves())
-            #     j -= 1
 
         # updating the player position
         player.move(action)
@@ -227,14 +213,6 @@ def qlearning(player, maze, episode, decision_making, survivor, fire):
             for (x, y) in exits:
                 maze[x, y] = ESCAPING_REWARD
 
-        elif reward not in [
-            -WALL_PENALTY,
-            -FIRE_PENALTY,
-            -PITFALL_PENALTY,
-            ESCAPING_REWARD,
-        ]:
-            maze[player.get_coord()] += -MOVING_PENALTY
-
         if move == NB_MAX_MOVES:
             player.cumulative_reward = -np.inf
 
@@ -264,6 +242,7 @@ def train(Maze, player, decision_making="stoch", survivor=2, pitfall=0, fire=0):
 
     print("")
     plt.plot(rewards)
+    print(np.argmax(rewards))
     plt.show()
 
     return player
@@ -284,13 +263,15 @@ def test(
 
     for _ in range(shots):
         player.reset(entrances[np.random.choice(len(entrances), replace=False)])
-        maze = np.copy(Maze)
-        player, path = qlearning(player, maze, 200, decision_making, fire, survivor)
+        player, path = qlearning(
+            player, np.copy(Maze), np.inf, decision_making, fire, survivor
+        )
         paths.append(path)
 
     player.reset(entrances[np.random.choice(len(entrances), replace=False)])
-    maze = np.copy(Maze)
-    player, path = qlearning(player, maze, 200, decision_making, fire, survivor)
+    player, path = qlearning(
+        player, np.copy(Maze), np.inf, decision_making, fire, survivor
+    )
     paths.append(path)
 
     return player, paths
@@ -306,7 +287,6 @@ def model(
 
     player, Maze = create_env(survivor, pitfall, fire)
     show_maze(Maze, [])
-    player.Q = np.zeros((SIZE, SIZE, len(allowed_moves)))
     paths = []
 
     print("Training...")
@@ -316,9 +296,9 @@ def model(
     if doTest:
         print("Testing...")
 
-        # Maze = real_env(Maze, survivor, pitfall, fire)
+        Maze = real_env(Maze)
 
-        player, paths = test(Maze, player, shots, "stoch", survivor, fire)
+        player, paths = test(Maze, player, shots, "greedy", survivor, fire)
         print("Testing done")
 
         show_maze(Maze, paths[-1])
@@ -328,11 +308,11 @@ def model(
 
 #%%
 def show_maze(
-    maze,
+    Maze,
     path=[],
 ):
 
-    maze = np.copy(maze)
+    maze = np.copy(Maze)
 
     # modification of data for rendering
     for (y, x) in np.argwhere(maze == -FIRE_PENALTY):
